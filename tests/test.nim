@@ -350,6 +350,7 @@ test "everything":
   node = read("#\".*\"")
   check node.kind == EdnRegex
 
-  #check add(5, 5) == 10
+  node = read("#'some-ns/symbol")
+  check node.kind == EdnVarQuote
 
 

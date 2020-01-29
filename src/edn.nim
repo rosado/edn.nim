@@ -52,6 +52,7 @@ type
     EdnTaggedValue
     EdnCommentLine
     EdnRegex
+    EdnVarQuote
 
   CommentPlacement* = enum
     Before
@@ -105,6 +106,8 @@ type
       comment*: string
     of EdnRegex:
       regex*: string
+    of EdnVarQuote:
+      var_symbol: EdnNode
     line*: int
     column*: int
     comments*: seq[Comment]
@@ -118,7 +121,7 @@ type
   HMap* = ref HMapObj
 
   ParseError* = object of Exception
-  ParseInfo = tuple[line, col: int]
+  ParseInfo* = tuple[line, col: int]
 
   MacroReader = proc(p: var EdnParser): EdnNode
   MacroArray = array[char, MacroReader]
@@ -226,7 +229,7 @@ let
 
 ### === ERROR HANDLING UTILS ===
 
-proc err_info(p: EdnParser): ParseInfo =
+proc err_info*(p: EdnParser): ParseInfo =
   result = (p.line_number, get_col_number(p, p.bufpos))
 
 ### === MACRO READERS ===
@@ -934,6 +937,8 @@ proc hash*(node: EdnNode): Hash =
     h = h !& hash(node.comment)
   of EdnRegex:
     h = h !& hash(node.regex)
+  of EdnVarQuote:
+    h = h !& hash(node.var_symbol)
   result = !$h
 
 proc `==`*(this, that: EdnNode): bool =
@@ -976,7 +981,17 @@ proc `==`*(this, that: EdnNode): bool =
       return this.comment == that.comment
     of EdnRegex:
       return this.regex == that.regex
+    of EdnVarQuote:
+      return this.var_symbol == that.var_symbol
 
+proc read_var_quote(p: var EdnParser): EdnNode =
+  let node = read(p)
+  case node.kind
+  of EdnSymbol:
+    result = EdnNode(kind: EdnVarQuote, var_symbol: node)
+  else:
+    raise new_exception(ParseError, "Attempted to read a var qote, but got" & $node.kind)
+  
 proc read_regex(p: var EdnParser): EdnNode =
   let s = read_string(p)
   result = EdnNode(kind: EdnRegex, regex: s.str)
@@ -1029,6 +1044,7 @@ proc init_dispatch_macro_array() =
   dispatch_macros['('] = read_anonymous_fn
   dispatch_macros['?'] = read_reader_conditional
   dispatch_macros['"'] = read_regex
+  dispatch_macros['\''] = read_var_quote
 
 proc init_edn_readers() =
   init_macro_array()
