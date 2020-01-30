@@ -72,7 +72,7 @@ type
     of EdnBool:
       boolVal*: bool
     of EdnCharacter:
-      character*: char
+      character*: string        # to support unicode chars
     of EdnInt:
       num*: BiggestInt
     of EdnRatio:
@@ -411,22 +411,21 @@ proc read_character(p: var EdnParser): EdnNode =
   result = EdnNode(kind: EdnCharacter)
   let token = read_token(p, false)
   if token.len == 1:
-    result.character = token[0]
-  elif token == "newline":
-    result.character = '\c'
+    result.character = token
+  if token == "newline":
+    result.character = "\c"
   elif token == "space":
-    result.character = ' '
+    result.character = " "
   elif token == "tab":
-    result.character = '\t'
+    result.character = "\t"
   elif token == "backspace":
-    result.character = '\b'
+    result.character = "\b"
   elif token == "formfeed":
-    result.character = '\f'
+    result.character = "\f"
   elif token == "return":
-    result.character = '\r'
+    result.character = "\r"
   elif token.startsWith("u"):
-    # TODO: impl unicode char reading
-    raise new_exception(ParseError, "Not implemented: reading unicode chars")
+    result.character = parse_hex_str(token)
   elif token.startsWith("o"):
     # TODO: impl unicode char reading
     raise new_exception(ParseError, "Not implemented: reading unicode chars")
