@@ -304,6 +304,16 @@ test "everything":
   check node.kind == EdnVector
   check node.vec.len == 2
 
+  opts1.conditional_exprs = ignoreConditionals
+  node = read("#?@(:clj [:generator-fn tlsubs/subscriber-timeline-record-generator])", opts1)
+  check node == nil
+
+  opts1.conditional_exprs = cljSource
+  # this should splice the tuple into key & value of the map,
+  #so result should be a map with one entry in it.
+  node = read("{#?@(:clj [:generator-fn tlsubs/subscriber-timeline-record-generator])}", opts1)
+  check node.kind == EdnMap
+  check node.map[new_edn_keyword("", "generator-fn")].get().kind == EdnSymbol
 
   try:
     node = read("{:ratio 1/-2}")

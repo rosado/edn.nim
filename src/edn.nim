@@ -16,7 +16,7 @@ type
     errQuoteExpected
 
   ConditionalExpressionsHandling* = enum
-    asError, asTagged, cljSource, cljsSource
+    asError, asTagged, cljSource, cljsSource, ignoreConditionals
 
   CommentsHandling* = enum
     discardComments, keepComments
@@ -521,12 +521,16 @@ type DelimitedListResult = object
   comment_lines: seq[string]
   comment_placement: CommentPlacement
 
+type DelimitedListReadOptions = enum
+  Recursive
+
 proc read_delimited_list(
-  p: var EdnParser, delimiter: char, is_recursive: bool): DelimitedListResult =
+  p: var EdnParser, delimiter: char, opts: Table[DelimitedListReadOptions, bool]): DelimitedListResult =
   # the bufpos should be already be past the opening paren etc.
   var list: seq[EdnNode] = @[]
   var comment_lines: seq[string] = @[]
   var count = 0
+  let is_recursive: bool = opts.get_or_default(Recursive, false)
   let with_comments = keepComments == p.options.comments_handling
   while true:
     skip_ws(p)
@@ -607,23 +611,71 @@ proc maybe_add_comments(node: EdnNode, list_result: DelimitedListResult): EdnNod
     else: node.comments.add(co)
     return node
 
+proc get_meta*(node: EdnNode): HMap
+
+proc is_element_spliced(node: EdnNode): bool =
+  case node.kind
+  of EdnVector, EdnList:
+    let meta = node.get_meta()
+    if meta == nil: return false
+    
+    let is_spliced = meta[SplicedQKw]
+    if is_spliced.is_none(): return false
+    else: return is_spliced.get() == EdnTrue
+
+  else:
+    return false  
+
+proc splice_conditional_exprs(list_result: DelimitedListResult): seq[EdnNode] =
+  var indices: seq[int] = @[]
+  var index = 0
+  var spliced_result: Option[seq[EdnNode]] = none(seq[EdnNode])
+
+  for item in list_result.list:
+    if is_element_spliced(item):
+      indices.add(index)
+      if spliced_result.is_none():
+        #backfill previous elems
+        spliced_result = some[seq[EdnNode]](@[])
+        var j = 0
+        while j < index:
+          spliced_result.get().add(list_result.list[j])
+          inc(j)
+      var elems_to_splice: seq[EdnNode]
+      case item.kind
+      of EdnVector:
+        elems_to_splice = item.vec
+      of EdnList:
+        elems_to_splice = item.list
+      else:
+        raise new_exception(ParseError, "Only vectors or list can be spliced in conditional reader expressions: " & $item.kind)
+      for to_splice in elems_to_splice:
+        spliced_result.get().add(to_splice)
+    elif spliced_result.is_some():
+      spliced_result.get().add(item)
+    inc(index)
+
+  if spliced_result.is_some():
+    return spliced_result.get()
+  else:
+    return list_result.list
+    
 proc read_list(p: var EdnParser): EdnNode =
   result = EdnNode(kind: EdnList)
-  #echo "line ", getCurrentLine(p), "lineno: ", p.line_number, " col: ", getColNumber(p, p.bufpos)
-  #echo $get_current_line(p) & " LINENO(" & $p.line_number & ")"
   add_line_col_meta(p, result)
-  var result_list = read_delimited_list(p, ')', true)
-  result.list = result_list.list
-  discard maybe_add_comments(result, result_list)
+  var delimited_result = read_delimited_list(p, ')', {Recursive: true}.to_table())
+  result.list = splice_conditional_exprs(delimited_result)
+  discard maybe_add_comments(result, delimited_result)
 
 const
   MAP_EVEN = "Map literal must contain even number of forms "
 
 proc read_map(p: var EdnParser): EdnNode =
   result = EdnNode(kind: EdnMap)
-  var list_result = read_delimited_list(p, '}', true)
-  var list = list_result.list
-  var index = 0
+  var list_result = read_delimited_list(p, '}', {Recursive: true}.to_table())
+  var
+    list = splice_conditional_exprs(list_result)
+    index = 0
   if (list.len and 1) == 1:
     for x in list:
       if index mod 2 == 0 and x.kind == EdnKeyword:
@@ -658,8 +710,8 @@ proc read_ns_map(p: var EdnParser): EdnNode =
   if p.buf[p.bufpos] != '{':
     raise new_exception(ParseError, "Namespaced map must specify a map")
   inc(p.bufpos)
-  let list_result = read_delimited_list(p, '}', true)
-  let list = list_result.list
+  let list_result = read_delimited_list(p, '}', {Recursive: true}.to_table())
+  let list = list_result.list #TODO: handle conditional splicing here
   if (list.len and 1) == 1:
     raise new_exception(ParseError, NS_MAP_EVEN)
   var
@@ -693,13 +745,14 @@ proc read_ns_map(p: var EdnParser): EdnNode =
 
 proc read_vector(p: var EdnParser): EdnNode =
   result = EdnNode(kind: EdnVector)
-  let list_result = read_delimited_list(p, ']', true)
-  result.vec = list_result.list
-  discard maybe_add_comments(result, list_result)
+  add_line_col_meta(p, result)
+  let delimited_result = read_delimited_list(p, ']', {Recursive: true}.to_table())
+  result.vec = splice_conditional_exprs(delimited_result)
+  discard maybe_add_comments(result, delimited_result)
 
 proc read_set(p: var EdnParser): EdnNode =
   result = EdnNode(kind: EdnSet)
-  let list_result = read_delimited_list(p, '}', true)
+  let list_result = read_delimited_list(p, '}', {Recursive: true}.to_table())
   var elements = list_result.list
   discard maybe_add_comments(result, list_result)
   var i = 0
@@ -719,7 +772,7 @@ proc read_anonymous_fn*(p: var EdnParser): EdnNode =
   meta[new_edn_keyword("", "from-reader-macro")] = new_edn_bool(true)
   result.list_meta = meta
 
-  var list_result = read_delimited_list(p, ')', true)
+  var list_result = read_delimited_list(p, ')', {Recursive: true}.to_table())
   for item in list_result.list:
     result.list.add(item)
   discard maybe_add_comments(result, list_result)
@@ -781,6 +834,8 @@ proc read_reader_conditional(p: var EdnParser): EdnNode =
     if is_some(val):
       result = val.get
     else: result = nil
+  of ignoreConditionals:
+    return nil
 
   # try the :default case
   if result == nil:
@@ -827,7 +882,7 @@ proc get_meta*(node: EdnNode): HMap =
   of EdnVector:
     return node.vec_meta
   else:
-    raise new_exception(ParseError, "Given type does not support metadata")
+    raise new_exception(ParseError, "Given type does not support metadata: " & $node.kind)
 
 proc safely_add_meta(node: EdnNode, meta: HMap): EdnNode =
   var node_meta = get_meta(node)
@@ -1059,6 +1114,8 @@ proc init_edn_readers*(options: ParseOptions) =
     dispatch_macros['+'] = read_cond_clj
   of cljsSource:
     dispatch_macros['+'] = read_cond_cljs
+  of ignoreConditionals:
+    discard
 
 init_edn_readers()
 
