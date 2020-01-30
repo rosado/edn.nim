@@ -425,7 +425,7 @@ proc read_character(p: var EdnParser): EdnNode =
   elif token == "return":
     result.character = "\r"
   elif token.startsWith("u"):
-    result.character = parse_hex_str(token)
+    result.character = parse_hex_str(token.substr(1))
   elif token.startsWith("o"):
     # TODO: impl unicode char reading
     raise new_exception(ParseError, "Not implemented: reading unicode chars")

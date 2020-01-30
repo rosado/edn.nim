@@ -317,6 +317,12 @@ test "everything":
   except ParseError:
     discard
 
+  node = read("\"\uffff\"")
+  check node.kind == EdnString
+
+  node = read("\\uffff")
+  check node.kind == EdnCharacter
+
   node = read("()") # for the following to work
   var n1: EdnNode = EdnNode(kind: EdnNil)
   var n2: EdnNode = EdnNode(kind: EdnNil)
