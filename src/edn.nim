@@ -59,6 +59,12 @@ type
     After
     Inside
 
+  KeywordNamespacing* = enum
+    NoNamespace                 # just :foo
+    LocalNamespace              # e.g. ::foo
+    NonLocalNamespace           # e.g  ::some-ns/foo
+    FullNamespace               # e.g  :some.namespace/foo
+
   CommentsObj* = object
     placement*: CommentPlacement
     comment_lines*: seq[string]
@@ -86,7 +92,7 @@ type
       symbol_meta*: HMap
     of EdnKeyword:
       keyword*: tuple[ns, name: string]
-      is_namespaced*: bool
+      namespacing*: KeywordNamespacing
     of EdnList:
       list*: seq[EdnNode]
       list_meta*: HMap
@@ -480,13 +486,16 @@ proc match_symbol(s: string): EdnNode =
     if split_sym.len == 1:
       if 2 < s.high() and s[1] == ':':
         result.keyword = (ns, name.substr(2, name.len))
-        result.is_namespaced = true
+        result.namespacing = LocalNamespace
       else:
         result.keyword = (ns, name.substr(1,name.len))
-        result.is_namespaced = false
+        result.namespacing = NoNamespace
     else:
-      result.keyword = (ns, name)
-      result.is_namespaced = false
+      result.keyword = (ns.replace(":", ""), name)
+      if s[1] == ':':
+        result.namespacing = NonLocalNamespace
+      else:
+        result.namespacing = FullNamespace
   else:
     result = EdnNode(kind: EdnSymbol)
     result.symbol = (ns, name)
@@ -971,7 +980,7 @@ proc hash*(node: EdnNode): Hash =
     h = h !& hash(node.symbol)
   of EdnKeyword:
     h = h !& hash(node.keyword)
-    h = h !& hash(node.is_namespaced)
+    h = h !& hash(node.namespacing)
   of EdnList:
     h = h !& hash(node.list)
   of EdnMap:
@@ -1020,7 +1029,7 @@ proc `==`*(this, that: EdnNode): bool =
     of EdnSymbol:
       return this.symbol == that.symbol
     of EdnKeyword:
-      return this.keyword == that.keyword and this.is_namespaced == that.is_namespaced
+      return this.keyword == that.keyword and this.namespacing == that.namespacing
     of EdnList:
       return this.list == that.list
     of EdnMap:
@@ -1341,11 +1350,14 @@ proc read*(buffer: string, options: ParseOptions): EdnNode =
 proc `$`*(node: EdnNode): string =
   case node.kind
   of EdnKeyword:
-    if node.is_namespaced:
-      result = "::" & node.keyword.name
-    elif node.keyword.ns == "":
+    case node.namespacing
+    of NoNamespace:
       result = ":" & node.keyword.name
-    else:
+    of LocalNamespace:
+      result = "::" & node.keyword.name
+    of NonLocalNamespace:
+      result = "::" & node.keyword.ns & "/" & node.keyword.name
+    of FullNamespace:
       result = ":" & node.keyword.ns & "/" & node.keyword.name
   of EdnSymbol:
     if node.symbol.ns == "":

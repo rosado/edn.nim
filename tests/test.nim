@@ -142,14 +142,14 @@ test "everything":
   node = read(":foo")
   check node.kind == EdnKeyword
   check node.keyword.name == "foo"
-  check node.is_namespaced == false
+  check node.namespacing == NoNamespace
   check $node == ":foo"
 
   node = read("::foobar")
   check node.kind == EdnKeyword
   check node.keyword.name == "foobar"
   check node.keyword.ns == ""
-  check node.is_namespaced == true
+  check node.namespacing == LocalNamespace
   check $node == "::foobar"
 
   node = read("+foo+")
