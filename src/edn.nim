@@ -605,11 +605,9 @@ proc read_delimited_list(
     result.comment_placement = Inside
   result.list = list
 
-proc add_line_col_meta(p: var EdnParser, node: var EdnNode): void =
-  let m = new_hmap()
+proc add_line_col_info(p: var EdnParser, node: var EdnNode): void =
   node.line = p.line_number
   node.column = getColNumber(p, p.bufpos)
-  discard add_meta(node, m)
 
 proc maybe_add_comments(node: EdnNode, list_result: DelimitedListResult): EdnNode =
   if list_result.comment_lines.len > 0:
@@ -671,7 +669,7 @@ proc splice_conditional_exprs(list_result: DelimitedListResult): seq[EdnNode] =
     
 proc read_list(p: var EdnParser): EdnNode =
   result = EdnNode(kind: EdnList)
-  add_line_col_meta(p, result)
+  add_line_col_info(p, result)
   var delimited_result = read_delimited_list(p, ')', {Recursive: true}.to_table())
   result.list = splice_conditional_exprs(delimited_result)
   discard maybe_add_comments(result, delimited_result)
@@ -701,7 +699,7 @@ proc read_map(p: var EdnParser): EdnNode =
     while i <= list.high - 1:
       result.map[list[i]] = list[i+1]
       i = i + 2
-  add_line_col_meta(p, result)
+  add_line_col_info(p, result)
   discard maybe_add_comments(result, list_result)
 
 const
@@ -754,13 +752,14 @@ proc read_ns_map(p: var EdnParser): EdnNode =
 
 proc read_vector(p: var EdnParser): EdnNode =
   result = EdnNode(kind: EdnVector)
-  add_line_col_meta(p, result)
+  add_line_col_info(p, result)
   let delimited_result = read_delimited_list(p, ']', {Recursive: true}.to_table())
   result.vec = splice_conditional_exprs(delimited_result)
   discard maybe_add_comments(result, delimited_result)
 
 proc read_set(p: var EdnParser): EdnNode =
   result = EdnNode(kind: EdnSet)
+  add_line_col_info(p, result)
   let list_result = read_delimited_list(p, '}', {Recursive: true}.to_table())
   var elements = list_result.list
   discard maybe_add_comments(result, list_result)
@@ -1307,15 +1306,24 @@ proc read_internal(p: var EdnParser): EdnNode =
     if isDigit(p.buf[p.bufpos + 1]):
       return read_num(p)
     else:
+      let column = getColNumber(p, p.bufpos)
       token = read_token(p, false)
+      let line_num = p.line_number
       result = interpret_token(token)
+      result.line = line_num
+      result.column = column
       return result
 
+
+  let column = getColNumber(p, p.bufpos)
   token = read_token(p, true)
   if opts.suppress_read:
     result = nil
   else:
+    let line_num = p.line_number
     result = interpret_token(token)
+    result.line = line_num
+    result.column = column
 
 proc read*(p: var EdnParser): EdnNode =
   result = read_internal(p)
