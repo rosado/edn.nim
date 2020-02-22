@@ -122,6 +122,9 @@ test "everything":
   check node.kind == EdnInt
   check node.num == -1
 
+  node = read("1M")
+  check node.kind == EdnInt     #TODO: for now...
+
   node = read("()")
   check node.kind == EdnList
   check node.list.len == 0
@@ -176,6 +179,14 @@ test "everything":
   check node.kind == EdnMap
   check node.map.len == 2
 
+  node = read("{:x 1M :y 2}")
+  check node.kind == EdnMap
+  check node.map.len == 2
+
+  node = read("{:order_date #clj-time/date-time \"2019-12-01T00:00:00.000Z\", :quantity 125.3M, 1 1}")
+  check node.kind == EdnMap
+  check node.map.len == 3
+  
   try:
     node = read("moo/bar/baz")
     raise new_exception(Exception, "FAILURE")
@@ -208,6 +219,10 @@ test "everything":
   check node.list.len == 3
   check node.list_meta.count == 1
   check node.list_meta[KeyTag].get() == new_edn_symbol("", "foo")
+
+  node = read("^{:x 1} #{1}")
+  check node.kind == EdnSet
+  check node.set_meta.count == 1
 
   node = read("^\"foo\" Symbol")
   check node.kind == EdnSymbol

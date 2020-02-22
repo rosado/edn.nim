@@ -863,7 +863,7 @@ proc read_reader_conditional(p: var EdnParser): EdnNode =
 
 
 const META_CANNOT_APPLY_MSG =
- "Metadata can be applied only to symbols, lists, vectors and map. Got :"
+ "Metadata can be applied only to symbols, lists, vectors and maps and sets. Got :"
 
 proc add_meta*(node: EdnNode, meta: HMap): EdnNode =
   case node.kind
@@ -875,6 +875,8 @@ proc add_meta*(node: EdnNode, meta: HMap): EdnNode =
     node.map_meta = meta
   of EdnVector:
     node.vec_meta = meta
+  of EdnSet:
+    node.set_meta = meta
   else:
     raise new_exception(ParseError, META_CANNOT_APPLY_MSG & $node.kind)
   result = node
@@ -889,6 +891,8 @@ proc get_meta*(node: EdnNode): HMap =
     return node.map_meta
   of EdnVector:
     return node.vec_meta
+  of EdnSet:
+    return node.set_meta
   else:
     raise new_exception(ParseError, "Given type does not support metadata: " & $node.kind)
 
@@ -919,6 +923,8 @@ proc read_metadata(p: var  EdnParser): EdnNode =
     m = new_hmap()
     m[KeyTag] = meta
   of EdnMap:
+    m = meta.map
+  of EdnSet:
     m = meta.map
   else:
     p.options = old_opts
@@ -1273,9 +1279,14 @@ proc read_num(p: var EdnParser): EdnNode =
         result = new_edn_ratio(numerator.num, denom.num)
       else:
         raise new_exception(ParseError, "error reading a ratio: " & p.a)
+    elif p.buf[p.bufpos] == 'M': #TODO: for now...
+      inc(p.bufpos)
+      result = new_edn_int(p.a)
     else:
       result = new_edn_int(p.a)
   of tkFloat:
+    if p.buf[p.bufpos] == 'M': #TODO: for now...
+      inc(p.bufpos)
     result = new_edn_float(p.a)
   of tkError:
     raise new_exception(ParseError, "error reading a number: " & p.a)
