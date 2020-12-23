@@ -126,7 +126,7 @@ type
     buckets*: seq[seq[HMapEntry]]
   HMap* = ref HMapObj
 
-  ParseError* = object of Exception
+  ParseError* = object of CatchableError
   ParseInfo* = tuple[line, col: int]
 
   MacroReader = proc(p: var EdnParser): EdnNode
