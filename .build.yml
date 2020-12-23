@@ -1,0 +1,9 @@
+image: alpine/edge
+packages:
+  - nimble
+sources:
+  - https://github.com/rosado/edn.nim
+tasks:
+  - test: |
+      cd edn.nim
+      nimble test
