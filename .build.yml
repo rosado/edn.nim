@@ -1,6 +1,5 @@
-image: alpine/edge
+image: archlinux
 packages:
-  - libressl
   - nimble
 sources:
   - https://github.com/rosado/edn.nim
