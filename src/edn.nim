@@ -1,5 +1,5 @@
 import
-  lexbase, streams, strutils, parseutils, unicode, nre, tables, hashes, options
+  lexbase, streams, strutils, unicode, nre, tables, hashes, options
 
 type
   TokenKind* = enum
