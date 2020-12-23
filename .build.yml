@@ -1,5 +1,6 @@
 image: alpine/edge
 packages:
+  - libressl
   - nimble
 sources:
   - https://github.com/rosado/edn.nim
