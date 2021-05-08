@@ -251,6 +251,11 @@ test "everything":
   check node.map.count == 1
   check node.map[new_edn_keyword("foo", "x")].get == new_edn_int(1)
 
+  node = read("#:foo {:_/x 1}")
+  check node.kind == EdnMap
+  check node.map.count == 1
+  check node.map[new_edn_keyword("", "x")].get == new_edn_int(1)
+
   node = read("1/2")
   check node.kind == EdnRatio
   check node.rnum == (BiggestInt(1), BiggestInt(2))
