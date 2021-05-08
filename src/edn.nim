@@ -201,10 +201,8 @@ proc new_edn_float*(val: float): EdnNode =
 
 proc new_edn_bool*(val: bool): EdnNode =
   case val
-  of true: return edn_true
-  of false: return edn_false
-  # of true: return EdnNode(kind: EdnBool, boolVal: true)
-  # of false: return EdnNode(kind: EdnBool, boolVal: false)
+  of true: return EdnNode(kind: EdnBool, boolVal: true)
+  of false: return EdnNode(kind: EdnBool, boolVal: false)
 
 proc new_edn_bool*(s: string): EdnNode =
   let parsed: bool = parseBool(s)

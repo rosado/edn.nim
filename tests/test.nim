@@ -205,7 +205,7 @@ test "everything":
   check node.map_meta[new_edn_keyword("", "k")].get() == new_edn_int(1)
 
   let hh = new_hmap()
-  hh[new_edn_keyword("", "foo")] = edn_true
+  hh[new_edn_keyword("", "foo")] = new_edn_bool(true)
   check hh[new_edn_keyword("", "foo")].get() == new_edn_bool(true)
 
   node = read("^ :foo []")
